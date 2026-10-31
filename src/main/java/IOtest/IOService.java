@@ -75,7 +75,6 @@ class Main {
                 // 5. 从集合移除当前事件，避免下一轮重复处理
                 iterator.remove();
 
-
                 // 6. 服务端 Channel 有连接可接受
                 if (key.isAcceptable()) {
                     SocketChannel socketChannel = ioService.acceptConnection();
@@ -83,40 +82,95 @@ class Main {
                         continue;
                     }
                     socketChannel.configureBlocking(false);
-                    ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
-                    socketChannel.register(selector,SelectionKey.OP_READ,byteBuffer);
+                    ConnectionState state = new ConnectionState();
+                    socketChannel.register(selector, SelectionKey.OP_READ, state);
                 }
-                //如果可读
-                if(key.isReadable()){
+                //-----以上负责连接建立------//
+                //7.如果可读
+                if (key.isReadable()) {
                     //先取出channel
-                    SocketChannel client = (SocketChannel)key.channel();
+                    SocketChannel client = (SocketChannel) key.channel();
                     //取出buffer
-                    ByteBuffer byteBuffer = (ByteBuffer)key.attachment();
+                    ConnectionState state = (ConnectionState) key.attachment();
+                    //readBuffer
+                    ByteBuffer readBuffer = state.readBuffer;
                     //先要获取buffer的大小
                     int count;
                     try {
-                        count = client.read(byteBuffer);
+                        count = client.read(readBuffer);
                     } catch (IOException e) {
                         // 一个客户端异常断开时，只关闭该连接，不退出事件循环
                         key.cancel();
                         client.close();
                         continue;
                     }
-                    if(count > 0) {
+                    if (count > 0) {
                         //前置
-                        byteBuffer.flip();
+                        readBuffer.flip();
                         //开启缓冲区
                         byte[] data = new byte[count];
                         //读到jvm里
-                        byteBuffer.get(data);
+                        readBuffer.get(data);
+
                         System.out.println(new String(data));
-                        byteBuffer.clear();
-                    }if(count == -1){
+
+                        readBuffer.clear();
+
+                        state.writeBuffer = ByteBuffer.wrap(data);
+                        try {
+                            client.write(state.writeBuffer);
+                        } catch (IOException ex) {
+                            key.cancel();
+                            client.close();
+                            continue;
+                        }
+                        //判断是否保存下来了,hasRemaining()方法判断
+
+                        if (state.writeBuffer.hasRemaining()) {
+                            key.interestOps(SelectionKey.OP_WRITE);
+                        } else {
+                            state.writeBuffer = null;
+                        }
+                    }
+                    if (count == -1) {
                         key.cancel();
                         client.close();
+                    }
+                }
+
+                if (key.isWritable()) {
+                    //                    int count;
+                    //获取绑定的客户端
+                    SocketChannel client = (SocketChannel) key.channel();
+                    //获取暂存的缓冲区
+                    ConnectionState state = (ConnectionState) key.attachment();
+                    //尝试读取
+                    //                   count = client.read(state.writeBuffer);
+                    //                   if(count == 0){
+                    //                       state.writeBuffer = null;
+                    //                       continue;
+                    //                   }
+
+                    try {
+                        client.write(state.writeBuffer);
+                    } catch (IOException ex) {
+                        key.cancel();
+                        client.close();
+                        continue;
+                    }
+                    if (state.writeBuffer.hasRemaining()) {
+                        //                       key.interestOps(SelectionKey.OP_WRITE);
+                    } else {
+                        state.writeBuffer = null;
+                        key.interestOps(SelectionKey.OP_READ);
                     }
                 }
             }
         }
     }
+}
+
+class ConnectionState {
+    ByteBuffer readBuffer = ByteBuffer.allocate(1024);
+    ByteBuffer writeBuffer;
 }
