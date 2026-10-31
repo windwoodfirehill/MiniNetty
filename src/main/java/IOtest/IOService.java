@@ -14,8 +14,6 @@ import java.util.Set;
 public class IOService {
     private final MyJDKChannel mj;
 
-    private static final int BUFFER_SIZE = 1024;
-
     public IOService(SocketAddress socketAddress) throws IOException {
         this.mj = new MyJDKChannel(ServerSocketChannel.open());
 
@@ -38,9 +36,6 @@ public class IOService {
         if (socketChannel == null) {
             return null;
         }
-
-        // 每个客户端连接分配一个 Buffer
-        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
 
         System.out.println("客户端已连接：" + socketChannel.getRemoteAddress());
         return socketChannel;
@@ -98,7 +93,15 @@ class Main {
                     //取出buffer
                     ByteBuffer byteBuffer = (ByteBuffer)key.attachment();
                     //先要获取buffer的大小
-                    int count = client.read(byteBuffer);
+                    int count;
+                    try {
+                        count = client.read(byteBuffer);
+                    } catch (IOException e) {
+                        // 一个客户端异常断开时，只关闭该连接，不退出事件循环
+                        key.cancel();
+                        client.close();
+                        continue;
+                    }
                     if(count > 0) {
                         //前置
                         byteBuffer.flip();
