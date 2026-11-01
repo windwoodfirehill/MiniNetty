@@ -1,5 +1,7 @@
 package IOtest;
 
+import Core.ConnectionState;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -135,6 +137,7 @@ class Main {
                     if (count == -1) {
                         key.cancel();
                         client.close();
+                        continue;
                     }
                 }
 
@@ -170,7 +173,3 @@ class Main {
     }
 }
 
-class ConnectionState {
-    ByteBuffer readBuffer = ByteBuffer.allocate(1024);
-    ByteBuffer writeBuffer;
-}

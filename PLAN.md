@@ -21,7 +21,7 @@
 - 拆分 Boss 接受连接与 Worker 处理读写，每个 Worker 管理多个连接。
 - 实现跨线程注册任务和 Selector.wakeup()。
 - 验收：多个连接分配给 Worker，跨线程注册后能及时处理事件。
-
+*
 ## 阶段四：Handler 与简单 HTTP
 
 - 定义小型 Handler，让网络事件与应用处理分离。
