@@ -1,7 +1,6 @@
 package IOtest;
 
 import Core.ConnectionState;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -18,15 +17,13 @@ public class IOService {
 
     public IOService(SocketAddress socketAddress) throws IOException {
         this.mj = new MyJDKChannel(ServerSocketChannel.open());
-
         // 注册 Selector 前必须设置非阻塞
         mj.setNoBlocking();
-
         // 绑定地址和端口
         mj.bind(socketAddress);
     }
 
-    // 让服务端 Channel 注册到 Selector
+    // 让服务端 MyChannel 注册到 Selector
     public void register(Selector selector) throws IOException {
         mj.register(selector);
     }
@@ -54,13 +51,13 @@ class Main {
         // 1. 创建 Selector
         Selector selector = Selector.open();
 
-        // 2. 注册服务端 Channel，关注 OP_ACCEPT
+        // 2. 注册服务端 MyChannel，关注 OP_ACCEPT
         ioService.register(selector);
 
         System.out.println("服务端已启动：" + HOST + ":" + PORT);
 
         while (true) {
-            // 3. 等待事件，返回就绪 Channel 的数量
+            // 3. 等待事件，返回就绪 MyChannel 的数量
             int readyCount = selector.select();
 
             if (readyCount == 0) {
@@ -77,7 +74,7 @@ class Main {
                 // 5. 从集合移除当前事件，避免下一轮重复处理
                 iterator.remove();
 
-                // 6. 服务端 Channel 有连接可接受
+                // 6. 服务端 MyChannel 有连接可接受
                 if (key.isAcceptable()) {
                     SocketChannel socketChannel = ioService.acceptConnection();
                     if (socketChannel == null) {
@@ -142,7 +139,6 @@ class Main {
                 }
 
                 if (key.isWritable()) {
-                    //                    int count;
                     //获取绑定的客户端
                     SocketChannel client = (SocketChannel) key.channel();
                     //获取暂存的缓冲区

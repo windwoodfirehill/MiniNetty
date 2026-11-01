@@ -13,7 +13,8 @@ import java.util.concurrent.ArrayBlockingQueue;
 public class WorkerLoop extends EventLoop{
     //原本：public boolean stop = false;
     public volatile boolean stop = false; //修改：保证其他线程修改后可见
-    public static final int QUE_SIZE = 1;
+    //原本：QUE_SIZE = 1
+    public static final int QUE_SIZE = 1024; //修改：允许暂存更多待注册连接
     public final ArrayBlockingQueue<SocketChannel> queue;
     //原本：在 loop 中初始化 Selector，并吞掉初始化异常
     public final Selector selector; //修改：构造完成后即可供 Boss 调用 wakeup()
@@ -21,9 +22,14 @@ public class WorkerLoop extends EventLoop{
         queue = new ArrayBlockingQueue<>(QUE_SIZE);
         selector = Selector.open(); //新增：每个 Worker 只创建一个 Selector
     }
+    public boolean offerToQueue(SocketChannel socketChannel){
+        boolean result = queue.offer(socketChannel);
+        selector.wakeup();
+        return result;
+    }
 
     @Override
-    void loop() throws IOException {
+    public void loop() throws IOException {
         while(!stop){
             //原本：if，只处理一个待注册连接
             while(!queue.isEmpty()){ //修改：处理完待注册连接再等待事件
@@ -58,13 +64,12 @@ public class WorkerLoop extends EventLoop{
     //注册连接
     void register(Selector selector) throws IOException {
         SocketChannel channel = getChannel(queue);
-
         if(channel == null){
             return;
         }
-
-        try { //新增：单个连接注册失败不退出整个 Worker 循环
-            channel.configureBlocking(false); //新增：注册前确保非阻塞
+        //设置非阻塞，只打印异常栈而不终止整个loop
+        try {
+            channel.configureBlocking(false);
             ConnectionState state = new ConnectionState();
             channel.register(selector, SelectionKey.OP_READ,state);
         } catch (IOException ex) {
