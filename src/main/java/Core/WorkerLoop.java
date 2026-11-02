@@ -1,27 +1,32 @@
 package Core;
 
+import ConnectionService.ConnectionState;
+import Handler.MessageHandler;
+import Protocol.Protocol;
 import java.io.IOException;
 //修改：删除未使用的 import；原本：import java.nio.Buffer;
+import Protocol.HttpRequest;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 
 public class WorkerLoop extends EventLoop{
-    //原本：public boolean stop = false;
-    public volatile boolean stop = false; //修改：保证其他线程修改后可见
     //原本：QUE_SIZE = 1
     public static final int QUE_SIZE = 1024; //修改：允许暂存更多待注册连接
     public final ArrayBlockingQueue<SocketChannel> queue;
-    //原本：在 loop 中初始化 Selector，并吞掉初始化异常
-    public final Selector selector; //修改：构造完成后即可供 Boss 调用 wakeup()
-    public WorkerLoop() throws IOException { //修改：初始化失败向调用方抛出
+    private final Protocol protocol;
+    private final Map<String,MessageHandler> handlerMap;
+    public WorkerLoop(Protocol protocol, MessageHandler messageHandler,Map handlerMap) throws IOException {
+        this.protocol = protocol;
+        this.handlerMap = handlerMap; //修改：初始化失败向调用方抛出
         queue = new ArrayBlockingQueue<>(QUE_SIZE);
-        selector = Selector.open(); //新增：每个 Worker 只创建一个 Selector
     }
+
     public boolean offerToQueue(SocketChannel socketChannel){
         boolean result = queue.offer(socketChannel);
         selector.wakeup();
@@ -71,6 +76,11 @@ public class WorkerLoop extends EventLoop{
         try {
             channel.configureBlocking(false);
             ConnectionState state = new ConnectionState();
+            if(co()){
+                System.out.println("正在开发中->获取协议->设置state的协议/否则使用默认协议");
+            }
+            state.protocol = protocol;
+
             channel.register(selector, SelectionKey.OP_READ,state);
         } catch (IOException ex) {
             ex.printStackTrace();
@@ -81,12 +91,15 @@ public class WorkerLoop extends EventLoop{
             }
         }
     }
+    //未来的协商
+    public boolean co(){
+        return false;
+    }
 
     SocketChannel getChannel(ArrayBlockingQueue<SocketChannel> queue) {
         return queue.poll();
     }
 
-    @Override
     void read(SelectionKey key) throws IOException {
         SocketChannel client = (SocketChannel)key.channel();
         ConnectionState state = (ConnectionState) key.attachment();
@@ -113,11 +126,18 @@ public class WorkerLoop extends EventLoop{
             byte[] data = new byte[count];
 
             readBuffer.get(data);
-
+            MessageHandler handler;
             System.out.println(new String(data));
+            if(state.protocol == null) {
+                handler = handlerMap.get(protocol.getType());
+            }else{
+                handler = handlerMap.get(state.protocol.getType());
+            }
+
+            handler.onMessage((HttpRequest)protocol.decoder(data));
 
             readBuffer.clear();
-
+            //以下代码预期清除
             state.writeBuffer = ByteBuffer.wrap(data);
 
             key.interestOps(SelectionKey.OP_WRITE);
@@ -126,7 +146,7 @@ public class WorkerLoop extends EventLoop{
         }
     }
 
-    @Override
+
     void write(SelectionKey key) throws IOException {
 
         SocketChannel client = (SocketChannel) key.channel();
@@ -153,12 +173,6 @@ public class WorkerLoop extends EventLoop{
             state.writeBuffer = null;
             key.interestOps(SelectionKey.OP_READ);
         }
-    }
-
-    //新增：停止时唤醒 Selector，否则仅修改 stop 仍可能一直等待
-    public void shutdown() {
-        stop = true;
-        selector.wakeup();
     }
 
     private void closeConnection(SelectionKey key) {

@@ -12,12 +12,9 @@ import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 
 public class BossLoop extends EventLoop{
-    private final Selector selector;
     private final ServiceCreater serviceCreater;
-    private volatile boolean stop = false;
     private final ChannelDispatcher channelDispatcher;
     public BossLoop(SocketAddress socketAddress, ChannelDispatcher channelDispatcher) throws IOException {
-        this.selector = Selector.open();
         this.serviceCreater = new ServiceCreater(socketAddress);
         this.channelDispatcher = channelDispatcher;
         register(selector);
@@ -58,25 +55,10 @@ public class BossLoop extends EventLoop{
             }
         }
     }
-         public void shutdown() {
-              stop = true;
-              selector.wakeup();
-        }
     //初始化
     @Override
     void register(Selector selector) throws IOException {
         serviceCreater.register(selector);
     }
 
-    @Override
-    //原本：void read()
-    void read(SelectionKey key) throws IOException { //修改：匹配父类声明，保留空实现
-
-    }
-
-    @Override
-    //原本：void write()
-    void write(SelectionKey key) { //修改：匹配父类声明，保留空实现
-
-    }
 }

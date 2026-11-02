@@ -1,6 +1,6 @@
 package IOtest;
 
-import Core.ConnectionState;
+import ConnectionService.ConnectionState;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
