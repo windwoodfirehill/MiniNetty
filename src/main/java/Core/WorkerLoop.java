@@ -19,10 +19,10 @@ public class WorkerLoop extends EventLoop{
     //原本：QUE_SIZE = 1
     public static final int QUE_SIZE = 1024; //修改：允许暂存更多待注册连接
     public final ArrayBlockingQueue<SocketChannel> queue;
-    private final Protocol protocol;
+    private final String protocolType; //修改：Worker 保存协议类型，不共用解析器
     private final Map<String,MessageHandler> handlerMap;
-    public WorkerLoop(Protocol protocol, MessageHandler messageHandler,Map handlerMap) throws IOException {
-        this.protocol = protocol;
+    public WorkerLoop(String protocolType, MessageHandler messageHandler,Map handlerMap) throws IOException {
+        this.protocolType = protocolType;
         this.handlerMap = handlerMap; //修改：初始化失败向调用方抛出
         queue = new ArrayBlockingQueue<>(QUE_SIZE);
     }
@@ -56,7 +56,7 @@ public class WorkerLoop extends EventLoop{
                     continue;
                 }
                 if (key.isReadable()) {
-                    read(key);
+                    read(key); //修改：read 返回 void，关闭连接后由下面的 isValid 判断
                 }
                 if (key.isValid()&&key.isWritable()) {
                     write(key);
@@ -79,7 +79,7 @@ public class WorkerLoop extends EventLoop{
             if(co()){
                 System.out.println("正在开发中->获取协议->设置state的协议/否则使用默认协议");
             }
-            state.protocol = protocol;
+            state.protocol = Protocol.create(protocolType); //修改：连接建立时创建独立解析器
 
             channel.register(selector, SelectionKey.OP_READ,state);
         } catch (IOException ex) {
@@ -125,16 +125,18 @@ public class WorkerLoop extends EventLoop{
 
             byte[] data = new byte[count];
 
-            readBuffer.get(data);
             MessageHandler handler;
-            System.out.println(new String(data));
-            if(state.protocol == null) {
-                handler = handlerMap.get(protocol.getType());
-            }else{
-                handler = handlerMap.get(state.protocol.getType());
-            }
 
+            Protocol protocol = state.protocol; //修改：连接存续期间复用同一个解析器
+            handler = handlerMap.get(protocol.getType());
+
+            ByteBuffer byteBuffer = readBuffer.get(data);
+            String temp = new String(data);
+            if(!protocol.isArrived(temp)){
+                return;
+            }
             handler.onMessage((HttpRequest)protocol.decoder(data));
+            System.out.println(new String(data));
 
             readBuffer.clear();
             //以下代码预期清除

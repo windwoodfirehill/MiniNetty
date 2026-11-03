@@ -4,8 +4,12 @@ import java.util.List;
 import java.util.Map;
 
 public class HttpRequest {
-
-    // 请求方法：GET、POST 等
+    //GET /index.html?user=123 HTTP/1.1
+    //Host: www.example.com
+    //User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)
+    //Accept: text/html,application/xhtml+xml,application/xml;q=0.9
+    //Accept-Encoding: gzip, deflate
+    //请求方法
     private final String method;
 
     // 请求目标，例如 /users?id=1

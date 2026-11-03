@@ -34,7 +34,7 @@ public class MiniNettyBootStrap {
         BossLoop bossLoop = new BossLoop(new InetSocketAddress(defaultHost, defaultPort),channelDispatcher); //修改
 
 
-        WorkerLoop workerLoop = new WorkerLoop(defaultProtocol,handlerMap.get(defaultProtocol.getType()),handlerMap);
+        WorkerLoop workerLoop = new WorkerLoop(defaultProtocol.getType(),handlerMap.get(defaultProtocol.getType()),handlerMap); //修改：传协议类型
         channelDispatcher.injectWorkerLoop(workerLoop);
         Thread boss = new Thread(()->{
             try {
