@@ -1,5 +1,11 @@
 package Protocol;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 public class HttpProtocol extends Protocol{
     private static final String TYPE = "http";
     private int contentLength = -1;
@@ -8,15 +14,95 @@ public class HttpProtocol extends Protocol{
 
     private int headLength;
 
+    private boolean lazyMode = true;
+
+    public static Map<String, List<String>> initHeaders() {
+        Map<String, List<String>> map = new HashMap<>();
+        String[] keys = {
+                "Host", "User-Agent", "Connection", "Keep-Alive", "Date",
+                "Cache-Control", "Pragma", "Via", "Warning",
+                "Accept", "Accept-Language", "Accept-Encoding", "Accept-Charset", "TE",
+                "Content-Type", "Content-Length", "Content-Encoding", "Content-Language",
+                "Transfer-Encoding", "Expect", "Trailer",
+                "If-Match", "If-None-Match", "If-Modified-Since",
+                "If-Unmodified-Since", "If-Range", "Range",
+                "Authorization", "Proxy-Authorization", "Cookie",
+                "Referer", "Origin", "Upgrade", "Upgrade-Insecure-Requests",
+                "Sec-Fetch-Dest", "Sec-Fetch-Mode", "Sec-Fetch-Site", "Sec-Fetch-User",
+                "Sec-Ch-Ua", "Sec-Ch-Ua-Mobile", "Sec-Ch-Ua-Platform", "DNT",
+                "X-Forwarded-For", "X-Real-IP"
+        };
+        for (String key : keys) {
+            map.put(key, new ArrayList<>());
+        }
+        return map;
+    }
+
     @Override
     public String getType() {
         return TYPE;
     }
+    public HttpProtocol(){
+
+    }
 
     @Override
     public Object decoder(byte[] data) {
-        String s = new String(data);
-        return new byte[1];
+        String http = new String(data);
+        String[] lines = http.trim().split("\r\n");
+        //按照空格切分
+        String[] requestLine = lines[0].trim().split("\\s+");
+        String method = requestLine[0];
+        String target = requestLine[1];
+        String version = requestLine[2];
+        HttpRequest httpRequest = new HttpRequest(method,target,version,initHeaders(),null);
+
+        Map<String,List<String>> headers = httpRequest.getHeaders();
+        for(int i = 1; i < lines.length ; i ++){
+            int idx = lines[i].indexOf(":");
+            if(idx <= 0){continue;}
+
+            String key = lines[i].substring(0,idx).trim();
+            String value = lines[i].substring(idx+1).trim();
+
+            if(headers.containsKey(key)){
+                headers.get(key).add(value);
+            }
+        }
+
+        String body = null;
+        HttpRequest finalRequest;
+        if(lazyMode == true) {
+            List<String> contents = headers.get("Content-Length");
+            if (contents != null && !contents.isEmpty()) {
+                int len = Integer.parseInt(contents.get(0).trim());
+                if (len > 0) {
+                    int idx = http.indexOf("\r\n\r\n");
+                    body = idx >= 0 ? http.substring(idx + 4).trim() : "";
+                    if (body.length() > len) {
+                        body.substring(0, len);
+                        finalRequest = new HttpRequest(method,target,version,headers,body.getBytes());
+                    }
+                }
+            }
+        }else{
+            if(contentLength > 0){
+                int idx = http.indexOf("\r\n\r\n");
+                body = idx >= 0 ? http.substring(idx + 4).trim() : "";
+                if (body.length() > contentLength) {
+                    body.substring(0, contentLength);
+                    finalRequest = new HttpRequest(method,target,version,headers,body.getBytes());
+                }
+            }
+        }
+        System.out.println(method+" "+target+" "+version+" ");
+        for(Map.Entry<String,List<String>> entry : headers.entrySet()){
+            if(!entry.getValue().isEmpty()){
+                System.out.println(entry.getKey() + ":" + entry.getValue().get(0));
+            }
+        }
+        return new Object();
+
     }
 
     @Override

@@ -131,6 +131,7 @@ public class WorkerLoop extends EventLoop{
             handler = handlerMap.get(protocol.getType());
 
             ByteBuffer byteBuffer = readBuffer.get(data);
+            //判断是否完全到达
             String temp = new String(data);
             if(!protocol.isArrived(temp)){
                 return;
