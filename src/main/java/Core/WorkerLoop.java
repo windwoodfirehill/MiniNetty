@@ -1,5 +1,6 @@
 package Core;
 
+import java.nio.charset.StandardCharsets;
 import ConnectionService.ConnectionState;
 import Handler.MessageHandler;
 import Protocol.Protocol;
@@ -14,6 +15,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.function.Supplier;
 
 public class WorkerLoop extends EventLoop{
     //原本：QUE_SIZE = 1
@@ -21,10 +23,14 @@ public class WorkerLoop extends EventLoop{
     public final ArrayBlockingQueue<SocketChannel> queue;
     private final String protocolType; //修改：Worker 保存协议类型，不共用解析器
     private final Map<String,MessageHandler> handlerMap;
-    public WorkerLoop(String protocolType, MessageHandler messageHandler,Map handlerMap) throws IOException {
+    private  Map<String, Supplier<Protocol>> protocolHandlers;
+
+
+    public WorkerLoop(String protocolType, MessageHandler messageHandler,Map handlerMap, Map<String, Supplier<Protocol>> protocolHandlers) throws IOException {
         this.protocolType = protocolType;
         this.handlerMap = handlerMap; //修改：初始化失败向调用方抛出
         queue = new ArrayBlockingQueue<>(QUE_SIZE);
+        this.protocolHandlers = protocolHandlers;
     }
 
     public boolean offerToQueue(SocketChannel socketChannel){
@@ -79,7 +85,8 @@ public class WorkerLoop extends EventLoop{
             if(co()){
                 System.out.println("正在开发中->获取协议->设置state的协议/否则使用默认协议");
             }
-            state.protocol = Protocol.create(protocolType); //修改：连接建立时创建独立解析器
+            //不判空，谁tm给我源码啊
+            state.protocol = protocolHandlers.get(protocolType).get();
 
             channel.register(selector, SelectionKey.OP_READ,state);
         } catch (IOException ex) {
@@ -128,16 +135,17 @@ public class WorkerLoop extends EventLoop{
             MessageHandler handler;
 
             Protocol protocol = state.protocol; //修改：连接存续期间复用同一个解析器
+
             handler = handlerMap.get(protocol.getType());
 
             ByteBuffer byteBuffer = readBuffer.get(data);
             //判断是否完全到达
-            String temp = new String(data);
+            String temp = new String(data, StandardCharsets.UTF_8);
             if(!protocol.isArrived(temp)){
                 return;
             }
             handler.onMessage((HttpRequest)protocol.decoder(data));
-            System.out.println(new String(data));
+            System.out.println(new String(data, StandardCharsets.UTF_8));
 
             readBuffer.clear();
             //以下代码预期清除

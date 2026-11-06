@@ -1,41 +1,19 @@
 package Protocol;
 
+
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 
 public class HttpProtocol extends Protocol{
     private static final String TYPE = "http";
-    private int contentLength = -1;
-
-    private int totalLength;
-
-    private int headLength;
-
-    private boolean lazyMode = true;
 
     public static Map<String, List<String>> initHeaders() {
-        Map<String, List<String>> map = new HashMap<>();
-        String[] keys = {
-                "Host", "User-Agent", "Connection", "Keep-Alive", "Date",
-                "Cache-Control", "Pragma", "Via", "Warning",
-                "Accept", "Accept-Language", "Accept-Encoding", "Accept-Charset", "TE",
-                "Content-Type", "Content-Length", "Content-Encoding", "Content-Language",
-                "Transfer-Encoding", "Expect", "Trailer",
-                "If-Match", "If-None-Match", "If-Modified-Since",
-                "If-Unmodified-Since", "If-Range", "Range",
-                "Authorization", "Proxy-Authorization", "Cookie",
-                "Referer", "Origin", "Upgrade", "Upgrade-Insecure-Requests",
-                "Sec-Fetch-Dest", "Sec-Fetch-Mode", "Sec-Fetch-Site", "Sec-Fetch-User",
-                "Sec-Ch-Ua", "Sec-Ch-Ua-Mobile", "Sec-Ch-Ua-Platform", "DNT",
-                "X-Forwarded-For", "X-Real-IP"
-        };
-        for (String key : keys) {
-            map.put(key, new ArrayList<>());
-        }
-        return map;
+        return new LinkedHashMap<>();
     }
 
     @Override
@@ -47,98 +25,97 @@ public class HttpProtocol extends Protocol{
     }
 
     @Override
-    public Object decoder(byte[] data) {
-        String http = new String(data);
-        String[] lines = http.trim().split("\r\n");
-        //按照空格切分
+    public HttpRequest decoder(byte[] data) {
+        //修改：先定位头部结束符，正文保留为原始字节
+        int end = 0;
+        while (end + 3 < data.length) {
+            if (data[end] == '\r' && data[end + 1] == '\n'
+                    && data[end + 2] == '\r' && data[end + 3] == '\n') {
+                break;
+            }
+            end++;
+        }
+        if (end + 3 >= data.length) return null;
+
+        String[] lines = new String(data, 0, end, StandardCharsets.UTF_8).split("\r\n");
         String[] requestLine = lines[0].trim().split("\\s+");
-        String method = requestLine[0];
-        String target = requestLine[1];
-        String version = requestLine[2];
-        HttpRequest httpRequest = new HttpRequest(method,target,version,initHeaders(),null);
+        if (requestLine.length != 3) throw new IllegalArgumentException("无效的请求行");
 
-        Map<String,List<String>> headers = httpRequest.getHeaders();
-        for(int i = 1; i < lines.length ; i ++){
-            int idx = lines[i].indexOf(":");
-            if(idx <= 0){continue;}
+        Map<String, List<String>> headers = initHeaders();
 
-            String key = lines[i].substring(0,idx).trim();
-            String value = lines[i].substring(idx+1).trim();
-
-            if(headers.containsKey(key)){
-                headers.get(key).add(value);
-            }
+        for (int i = 1; i < lines.length; i++) {
+            int colon = lines[i].indexOf(':');
+            if (colon <= 0) throw new IllegalArgumentException("无效的请求头");
+            String key = lines[i].substring(0, colon).trim().toLowerCase(Locale.ROOT);
+            String value = lines[i].substring(colon + 1).trim();
+            headers.computeIfAbsent(key, k -> new ArrayList<>()).add(value);
         }
 
-        String body = null;
-        HttpRequest finalRequest;
-        if(lazyMode == true) {
-            List<String> contents = headers.get("Content-Length");
-            if (contents != null && !contents.isEmpty()) {
-                int len = Integer.parseInt(contents.get(0).trim());
-                if (len > 0) {
-                    int idx = http.indexOf("\r\n\r\n");
-                    body = idx >= 0 ? http.substring(idx + 4).trim() : "";
-                    if (body.length() > len) {
-                        body.substring(0, len);
-                        finalRequest = new HttpRequest(method,target,version,headers,body.getBytes());
-                    }
-                }
-            }
-        }else{
-            if(contentLength > 0){
-                int idx = http.indexOf("\r\n\r\n");
-                body = idx >= 0 ? http.substring(idx + 4).trim() : "";
-                if (body.length() > contentLength) {
-                    body.substring(0, contentLength);
-                    finalRequest = new HttpRequest(method,target,version,headers,body.getBytes());
-                }
-            }
+        int length = 0;
+        List<String> lengths = headers.get("content-length");
+        if (headers.containsKey("transfer-encoding")) {
+            throw new IllegalArgumentException("当前只支持固定长度请求");
         }
-        System.out.println(method+" "+target+" "+version+" ");
-        for(Map.Entry<String,List<String>> entry : headers.entrySet()){
-            if(!entry.getValue().isEmpty()){
-                System.out.println(entry.getKey() + ":" + entry.getValue().get(0));
+        if (lengths != null) {
+            if (lengths.size() != 1 || !lengths.get(0).matches("[0-9]+")) {
+                throw new IllegalArgumentException("无效的 Content-Length");
             }
+            length = Integer.parseInt(lengths.get(0));
         }
-        return new Object();
-
+        int bodyStart = end + 4;
+        if (data.length - bodyStart < length) return null;
+        byte[] body = Arrays.copyOfRange(data, bodyStart, bodyStart + length);
+        return new HttpRequest(requestLine[0], requestLine[1], requestLine[2], headers, body);
     }
 
     @Override
     public byte[] encoder(Object message) {
-        return new byte[0];
+        HttpResponse httpResponse = (HttpResponse)message;
+        StringBuilder sb = new StringBuilder();
+        sb.append(httpResponse.getVersion());
+        sb.append(' ');
+        sb.append(httpResponse.getStatueCode());
+        sb.append(' ');
+        sb.append(httpResponse.getMsg());
+        sb.append("\r\n");
+
+        byte[] body = httpResponse.getBody();
+        int bodyLength = body == null ? 0 : body.length;
+        httpResponse.getMap().put("Content-Length",List.of(String.valueOf(bodyLength)));
+        for(Map.Entry<String,List<String>> entry : httpResponse.getMap().entrySet()){
+            if(entry.getValue()!=null) {
+                String key = entry.getKey();
+                for(String value : entry.getValue()) {
+                    sb.append(key);
+                    sb.append(": ");
+                    sb.append(value);
+                    sb.append("\r\n");
+                }
+            }
+        }
+        sb.append("\r\n");
+        byte[] headers = sb.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] result = new byte[headers.length + bodyLength];
+        System.arraycopy(headers,0,result,0,headers.length);
+        if(bodyLength > 0){
+            System.arraycopy(body,0,result,headers.length,bodyLength);
+        }
+        return result;
     }
+
 
     @Override
     boolean isLegal() {
         return false;
     }
-    public void setContentLength(int len) {
-        this.contentLength = len;
-    }
-
-    public void setHeadLength(int len) {
-        this.headLength = len;
-    }
-
-    public int getHeadLength() {
-        return this.headLength;
-    }
-
-    public int getContentLength() {
-        return this.contentLength;
-    }
-
    public boolean isArrived(String s) {
         int hasArrived = s.indexOf("\r\n\r\n");
         if (hasArrived < 0) {
             return false;
         }
 
-        setHeadLength(hasArrived + 4);
-
-        setContentLength(0);
+        int headLength = hasArrived + 4;
+        int contentLength = 0;
 
         String content = "Content-Length:";
         int pos = s.indexOf(content);
@@ -147,10 +124,9 @@ public class HttpProtocol extends Protocol{
             int begin = pos + content.length();
             int end = s.indexOf("\r\n", begin);
             //get body length
-            int len = Integer.parseInt(s.substring(begin, end).trim());
-
-            setContentLength(len);
+            contentLength = Integer.parseInt(s.substring(begin, end).trim());
         }
-        return s.length() >= (long) getHeadLength() + getContentLength();
+        return s.length() >= (long) headLength + contentLength;
     }
+
 }

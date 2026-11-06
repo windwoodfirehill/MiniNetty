@@ -1,5 +1,6 @@
 package IOtest;
 
+import java.nio.charset.StandardCharsets;
 import ConnectionService.ConnectionState;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -111,7 +112,7 @@ class Main {
                         //读到jvm里
                         readBuffer.get(data);
 
-                        System.out.println(new String(data));
+                        System.out.println(new String(data, StandardCharsets.UTF_8));
 
                         readBuffer.clear();
 

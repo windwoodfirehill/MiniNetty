@@ -33,6 +33,10 @@ public class HttpRequest {
         this.body = body;
     }
 
+    public String getMethod() {
+        return method;
+    }
+
     public String getTarget() {
         return target;
     }
