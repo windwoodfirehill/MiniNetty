@@ -3,7 +3,7 @@ package Core;
 import java.io.IOException;
 import java.nio.channels.Selector;
 
-abstract class EventLoop {
+public abstract class EventLoop {
 
     public final Selector selector; //新增：每个 EventLoop 持有自己的 Selector
     public volatile boolean stop = false; //新增：供不同线程安全地观察停止状态

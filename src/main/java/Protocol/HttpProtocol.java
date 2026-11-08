@@ -70,6 +70,9 @@ public class HttpProtocol extends Protocol{
 
     @Override
     public byte[] encoder(Object message) {
+        if(message == null){
+            return new byte[0];
+        }
         HttpResponse httpResponse = (HttpResponse)message;
         StringBuilder sb = new StringBuilder();
         sb.append(httpResponse.getVersion());

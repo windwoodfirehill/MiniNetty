@@ -1,6 +1,7 @@
 package Core;
 
 import java.nio.charset.StandardCharsets;
+import ConnectionService.Connection;
 import ConnectionService.ConnectionState;
 import Handler.MessageHandler;
 import Protocol.Protocol;
@@ -11,9 +12,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
+import java.security.Key;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.function.Supplier;
 
@@ -24,13 +24,15 @@ public class WorkerLoop extends EventLoop{
     private final String protocolType; //修改：Worker 保存协议类型，不共用解析器
     private final Map<String,MessageHandler> handlerMap;
     private  Map<String, Supplier<Protocol>> protocolHandlers;
+    private int workerId;
 
-
-    public WorkerLoop(String protocolType, MessageHandler messageHandler,Map handlerMap, Map<String, Supplier<Protocol>> protocolHandlers) throws IOException {
+    public WorkerLoop(String protocolType, MessageHandler messageHandler,Map handlerMap,
+                      Map<String, Supplier<Protocol>> protocolHandlers,int workerId) throws IOException {
         this.protocolType = protocolType;
         this.handlerMap = handlerMap; //修改：初始化失败向调用方抛出
         queue = new ArrayBlockingQueue<>(QUE_SIZE);
         this.protocolHandlers = protocolHandlers;
+        this.workerId = workerId;
     }
 
     public boolean offerToQueue(SocketChannel socketChannel){
@@ -38,6 +40,7 @@ public class WorkerLoop extends EventLoop{
         selector.wakeup();
         return result;
     }
+
 
     @Override
     public void loop() throws IOException {
@@ -64,10 +67,24 @@ public class WorkerLoop extends EventLoop{
                 if (key.isReadable()) {
                     read(key); //修改：read 返回 void，关闭连接后由下面的 isValid 判断
                 }
-                if (key.isValid()&&key.isWritable()) {
+                if(key.isValid() && key.isWritable()){
                     write(key);
                 }
             }
+            Set<SelectionKey> allKeys = selector.keys();
+            Iterator<SelectionKey> allKeysIterator = allKeys.iterator();
+            //可写
+            while(allKeysIterator.hasNext()){
+                SelectionKey key = allKeysIterator.next();
+                if(!key.isValid()){
+                    continue;
+                }
+                ConnectionState state = (ConnectionState) key.attachment();
+                if(state.writeBuffer == null && state.queue != null && !state.queue.isEmpty()){
+                write(key);
+                }
+            }
+
         }
     }
 
@@ -144,16 +161,13 @@ public class WorkerLoop extends EventLoop{
             if(!protocol.isArrived(temp)){
                 return;
             }
-            handler.onMessage((HttpRequest)protocol.decoder(data));
+            Connection connection = new Connection(this,state);
+
+            handler.onMessage(connection,protocol.decoder(data));
+
             System.out.println(new String(data, StandardCharsets.UTF_8));
 
             readBuffer.clear();
-            //以下代码预期清除
-            state.writeBuffer = ByteBuffer.wrap(data);
-
-            key.interestOps(SelectionKey.OP_WRITE);
-
-            write(key);
         }
     }
 
@@ -166,11 +180,23 @@ public class WorkerLoop extends EventLoop{
 
         ByteBuffer writeBuffer = state.writeBuffer;
 
-        if (writeBuffer == null) { //新增：没有待发送数据时恢复关注读事件
-            key.interestOps(SelectionKey.OP_READ);
-            return;
-        }
+        if (writeBuffer == null ) {
+            if(state.queue != null) {
+                Object object = state.queue.poll();
+                if (object != null) {
+                    Protocol protocol = state.protocol;
+                    byte[] data = protocol.encoder(object);
+                    writeBuffer = ByteBuffer.wrap(data);
 
+                } else {
+                    key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
+                    return;
+                }
+            }else{
+                key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
+                return;
+            }
+        }
         try{
             client.write(writeBuffer);
         }catch (IOException ex){
@@ -179,10 +205,11 @@ public class WorkerLoop extends EventLoop{
         }
 
         if(writeBuffer.hasRemaining()){
-            key.interestOps(SelectionKey.OP_WRITE);
+            key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+            state.writeBuffer = writeBuffer;
         }else{
             state.writeBuffer = null;
-            key.interestOps(SelectionKey.OP_READ);
+            key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
         }
     }
 

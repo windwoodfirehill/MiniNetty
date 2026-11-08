@@ -7,7 +7,7 @@ public abstract class Protocol {
 
     public abstract String getType();
     public abstract Object decoder(byte[] data);
-    public abstract byte[] encoder(Object message);
+    public abstract byte[]   encoder(Object message);
     abstract boolean isLegal();
     public abstract boolean isArrived(String s);
 }
