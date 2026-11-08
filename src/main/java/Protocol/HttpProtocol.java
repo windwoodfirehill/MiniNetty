@@ -107,29 +107,39 @@ public class HttpProtocol extends Protocol{
     }
 
 
-    @Override
-    boolean isLegal() {
+     @Override
+     boolean isLegal() {
         return false;
     }
-   public boolean isArrived(String s) {
-        int hasArrived = s.indexOf("\r\n\r\n");
-        if (hasArrived < 0) {
-            return false;
-        }
+       public int isArrived(byte[] data) {
+           int hasArrived = 0;
+           //找到/r/n/r/n
+           while (hasArrived + 3 < data.length) {
+               if (data[hasArrived] == '\r' && data[hasArrived + 1] == '\n'
+                       && data[hasArrived + 2] == '\r' && data[hasArrived + 3] == '\n') {
+                   break;
+               }
+               hasArrived++;
+           }
+           if(hasArrived + 3 >= data.length){
+               return -1;
+           }
+           String s = new String(data,0,hasArrived + 3);
+           String content = "Content_Length:";
+           int pos = s.indexOf("Content_Length:");
+           if(pos > hasArrived){
+               return hasArrived + 3;
+           }
+           int contentLength = 0;
+           if(pos > 0 && pos < hasArrived ) {
+               int begin = pos + content.length();
+               int end = s.indexOf("\r\n", pos);
+               contentLength = Integer.parseInt(s.substring(begin,end));
+           }
+           int totalLen = contentLength + hasArrived + 3;
+           if(totalLen <= data.length){
+               return totalLen;
+           }
+       }
 
-        int headLength = hasArrived + 4;
-        int contentLength = 0;
-
-        String content = "Content-Length:";
-        int pos = s.indexOf(content);
-
-        if (pos >= 0 && pos < hasArrived) {
-            int begin = pos + content.length();
-            int end = s.indexOf("\r\n", begin);
-            //get body length
-            contentLength = Integer.parseInt(s.substring(begin, end).trim());
-        }
-        return s.length() >= (long) headLength + contentLength;
-    }
-
-}
+   }

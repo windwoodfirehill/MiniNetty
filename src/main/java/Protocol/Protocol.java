@@ -9,5 +9,5 @@ public abstract class Protocol {
     public abstract Object decoder(byte[] data);
     public abstract byte[]   encoder(Object message);
     abstract boolean isLegal();
-    public abstract boolean isArrived(String s);
+    public abstract int isArrived(byte[] data);
 }

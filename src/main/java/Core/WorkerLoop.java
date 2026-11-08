@@ -129,7 +129,6 @@ public class WorkerLoop extends EventLoop{
         ConnectionState state = (ConnectionState) key.attachment();
 
         ByteBuffer readBuffer = state.readBuffer;
-
         int count = 0;
 
         try{
@@ -158,9 +157,11 @@ public class WorkerLoop extends EventLoop{
             ByteBuffer byteBuffer = readBuffer.get(data);
             //判断是否完全到达
             String temp = new String(data, StandardCharsets.UTF_8);
-            if(!protocol.isArrived(temp)){
+            int requestLength = protocol.isArrived(data);
+            if( requestLength < 0){
                 return;
             }
+
             Connection connection = new Connection(this,state);
 
             handler.onMessage(connection,protocol.decoder(data));
