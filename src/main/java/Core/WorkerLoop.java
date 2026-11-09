@@ -6,25 +6,24 @@ import ConnectionService.ConnectionState;
 import Handler.MessageHandler;
 import Protocol.Protocol;
 import java.io.IOException;
-//修改：删除未使用的 import；原本：import java.nio.Buffer;
-import Protocol.HttpRequest;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.security.Key;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.function.Supplier;
 
 public class WorkerLoop extends EventLoop{
-    //原本：QUE_SIZE = 1
-    public static final int QUE_SIZE = 1024; //修改：允许暂存更多待注册连接
+
+    public static final int QUE_SIZE = 1024;
+    public static final int BUF_MIN_SIZE = 1024;
+    public static final int BUF_MAX_SIZE = 4096;
+    public static final int GROW_RATE = 2;
     public final ArrayBlockingQueue<SocketChannel> queue;
-    private final String protocolType; //修改：Worker 保存协议类型，不共用解析器
+    private final String protocolType;
     private final Map<String,MessageHandler> handlerMap;
     private  Map<String, Supplier<Protocol>> protocolHandlers;
-    private int workerId;
 
     public WorkerLoop(String protocolType, MessageHandler messageHandler,Map handlerMap,
                       Map<String, Supplier<Protocol>> protocolHandlers) throws IOException {
@@ -32,7 +31,6 @@ public class WorkerLoop extends EventLoop{
         this.handlerMap = handlerMap; //修改：初始化失败向调用方抛出
         queue = new ArrayBlockingQueue<>(QUE_SIZE);
         this.protocolHandlers = protocolHandlers;
-        this.workerId = workerId;
     }
 
     public boolean offerToQueue(SocketChannel socketChannel){
@@ -65,8 +63,9 @@ public class WorkerLoop extends EventLoop{
                     continue;
                 }
                 if (key.isReadable()) {
-                    read(key); //修改：read 返回 void，关闭连接后由下面的 isValid 判断
+                    read(key);
                 }
+
                 if(key.isValid() && key.isWritable()){
                     write(key);
                 }
@@ -115,6 +114,18 @@ public class WorkerLoop extends EventLoop{
             }
         }
     }
+    public ByteBuffer expand(ByteBuffer byteBuffer){
+
+        if(byteBuffer.capacity() * GROW_RATE > BUF_MAX_SIZE){
+            return byteBuffer;
+        }
+        ByteBuffer temp = byteBuffer;
+        ByteBuffer biggerBuf = ByteBuffer.allocate(temp.capacity() * GROW_RATE);
+        temp.flip();
+        biggerBuf.put(temp);
+        byteBuffer = biggerBuf;
+        return byteBuffer;
+    }
     //未来的协商
     public boolean co(){
         return false;
@@ -146,7 +157,7 @@ public class WorkerLoop extends EventLoop{
 
             readBuffer.flip();
 
-            while (readBuffer.hasRemaining()) { //新增：本批数据可能包含多个请求
+            while (readBuffer.hasRemaining()) {
                 int requestStart = readBuffer.position(); //新增：记录当前请求的起点
                 byte[] data = new byte[readBuffer.remaining()]; //修改：取累计剩余字节，原本只取 count
 
@@ -173,8 +184,16 @@ public class WorkerLoop extends EventLoop{
                 //只清楚这次的requestLength
 
                 readBuffer.position(requestStart + requestLength); //修改：从当前请求起点向后消费
-            } //新增：继续检查剩余请求
+            }
             readBuffer.compact();
+            if(!readBuffer.hasRemaining()){
+                ByteBuffer temp = expand(readBuffer);
+                if(temp == state.readBuffer){
+                    closeConnection(key);
+                    return;
+                }
+                state.readBuffer = temp;
+            }
         }
     }
 

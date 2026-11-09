@@ -1,7 +1,11 @@
 package ConnectionService;
 
 import Core.EventLoop;
-
+import Protocol.Protocol;
+import Protocol.Protocols;
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
 
 public class Connection {
@@ -31,4 +35,28 @@ public class Connection {
         eventLoop.selector.wakeup();
         return true;
     }
+
+    public int getTotalByteSize(){
+        ArrayBlockingQueue<Object> queue =  state.queue;
+        ByteBuffer byteBuffer = state.writeBuffer;
+        int size = 0;
+        for(Object object : queue){
+           int len = (Protocols)object.getLength();
+           size += len;
+        }
+
+        //遍历队列
+        //加上缓冲区大小
+        size = queuebytesize + byteBuffer.size();
+        //如果大于负载因子的话
+        if(size >= Load * byteBuffer.capacity()){
+            expand(byteBuffer);
+        }
+    }
+    public ByteBuffer expand(ByteBuffer byteBuffer){
+        if()
+
+        return biggerBuffer;
+    }
+
 }

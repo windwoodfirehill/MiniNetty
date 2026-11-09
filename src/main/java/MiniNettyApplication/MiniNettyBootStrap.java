@@ -29,15 +29,15 @@ public class MiniNettyBootStrap {
     }
 
     public void MiniteyStart() throws IOException {
+        //协议获取映射表
         String[] protocols = {"http"};
-        protocolHandlers = Map.of("protocols",HttpProtocol :: new);
-
+        protocolHandlers = Map.of(protocols[0],HttpProtocol :: new);
+        //事件分发器
         ChannelDispatcher channelDispatcher = new ChannelDispatcher();
-        //原本：new InetSocketAddress()，没有无参构造器
-
+        //注册
         BossLoop bossLoop = new BossLoop(new InetSocketAddress(defaultHost, defaultPort),channelDispatcher); //修改
-
-        WorkerLoop workerLoop = new WorkerLoop(defaultProtocol.getType(),handlerMap.get(defaultProtocol.getType()),handlerMap,protocolHandlers); //修改：传协议类型
+        WorkerLoop workerLoop = new WorkerLoop(defaultProtocol.getType(), handlerMap.get(defaultProtocol.getType()),handlerMap,protocolHandlers); //修改：传协议类型
+        //注入事件分发器
         channelDispatcher.injectWorkerLoop(workerLoop);
         Thread boss = new Thread(()->{
             try {
@@ -46,7 +46,6 @@ public class MiniNettyBootStrap {
                 ex.printStackTrace();
             }
         },"boss-1");
-
         Thread worker = new Thread(()->{
             try{
                 workerLoop.loop();
@@ -54,7 +53,6 @@ public class MiniNettyBootStrap {
                 ex.printStackTrace();
             }
         },"worker-1");
-
         boss.start();
         worker.start();
     }

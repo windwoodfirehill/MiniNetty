@@ -3,7 +3,7 @@ package Protocol;
 import java.util.List;
 import java.util.Map;
 
-public class HttpRequest {
+public class HttpRequest extends Protocols{
     //GET /index.html?user=123 HTTP/1.1
     //Host: www.example.com
     //User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)
@@ -23,6 +23,8 @@ public class HttpRequest {
 
     // 请求体：文本、图片等都是字节
     private final byte[] body;
+
+    private int length = -1;
 
     public HttpRequest(String method, String target, String version,
                        Map<String, List<String>> headers, byte[] body) {
@@ -51,5 +53,24 @@ public class HttpRequest {
 
     public byte[] getBody() {
         return body;
+    }
+    //这个约定要共同实现，方便日后的使用
+    public int getLength() {
+        if(length > 0){
+            return length;
+        }
+        int temp = 0;
+        temp += method.length();
+        temp += target.length();
+        temp += version.length();
+        for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+            temp += entry.getKey().length();
+            for (String value : entry.getValue()) {
+                temp += value.length();
+
+            }
+        }
+        length = temp;
+        return length;
     }
 }
