@@ -27,7 +27,7 @@ public class WorkerLoop extends EventLoop{
     private int workerId;
 
     public WorkerLoop(String protocolType, MessageHandler messageHandler,Map handlerMap,
-                      Map<String, Supplier<Protocol>> protocolHandlers,int workerId) throws IOException {
+                      Map<String, Supplier<Protocol>> protocolHandlers) throws IOException {
         this.protocolType = protocolType;
         this.handlerMap = handlerMap; //修改：初始化失败向调用方抛出
         queue = new ArrayBlockingQueue<>(QUE_SIZE);
@@ -146,29 +146,35 @@ public class WorkerLoop extends EventLoop{
 
             readBuffer.flip();
 
-            byte[] data = new byte[count];
+            while (readBuffer.hasRemaining()) { //新增：本批数据可能包含多个请求
+                int requestStart = readBuffer.position(); //新增：记录当前请求的起点
+                byte[] data = new byte[readBuffer.remaining()]; //修改：取累计剩余字节，原本只取 count
 
-            MessageHandler handler;
+                MessageHandler handler;
 
-            Protocol protocol = state.protocol; //修改：连接存续期间复用同一个解析器
+                Protocol protocol = state.protocol; //修改：连接存续期间复用同一个解析器
 
-            handler = handlerMap.get(protocol.getType());
+                handler = handlerMap.get(protocol.getType());
 
-            ByteBuffer byteBuffer = readBuffer.get(data);
-            //判断是否完全到达
-            String temp = new String(data, StandardCharsets.UTF_8);
-            int requestLength = protocol.isArrived(data);
-            if( requestLength < 0){
-                return;
-            }
+                ByteBuffer byteBuffer = readBuffer.get(data);
+                //判断是否完全到达
+                String temp = new String(data, StandardCharsets.UTF_8);
+                int requestLength = protocol.isArrived(data);
+                if( requestLength < 0){
+                    readBuffer.position(requestStart); //修改：只保留当前尚未完成的请求
+                    break; //修改：退出解析循环后统一 compact
+                }
 
-            Connection connection = new Connection(this,state);
+                Connection connection = new Connection(this,state);
 
-            handler.onMessage(connection,protocol.decoder(data));
+                handler.onMessage(connection,protocol.decoder(data));
 
-            System.out.println(new String(data, StandardCharsets.UTF_8));
+                System.out.println(new String(data, 0, requestLength, StandardCharsets.UTF_8)); //修改：只打印本次请求
+                //只清楚这次的requestLength
 
-            readBuffer.clear();
+                readBuffer.position(requestStart + requestLength); //修改：从当前请求起点向后消费
+            } //新增：继续检查剩余请求
+            readBuffer.compact();
         }
     }
 

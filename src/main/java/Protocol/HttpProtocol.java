@@ -124,22 +124,21 @@ public class HttpProtocol extends Protocol{
            if(hasArrived + 3 >= data.length){
                return -1;
            }
-           String s = new String(data,0,hasArrived + 3);
-           String content = "Content_Length:";
-           int pos = s.indexOf("Content_Length:");
-           if(pos > hasArrived){
-               return hasArrived + 3;
-           }
+           String s = new String(data,0,hasArrived + 4,StandardCharsets.UTF_8);
+           String content = "Content-Length:";
+           int pos = s.indexOf("Content-Length:");
+           //修改：s 只有当前请求头，无需判断是否找到下一条请求的字段
            int contentLength = 0;
-           if(pos > 0 && pos < hasArrived ) {
+           if(pos > 0 ) {
                int begin = pos + content.length();
                int end = s.indexOf("\r\n", pos);
-               contentLength = Integer.parseInt(s.substring(begin,end));
+               contentLength = Integer.parseInt(s.substring(begin,end).trim());
            }
-           int totalLen = contentLength + hasArrived + 3;
+           int totalLen = contentLength + hasArrived + 4;
            if(totalLen <= data.length){
                return totalLen;
            }
+           return -1;
        }
 
    }
