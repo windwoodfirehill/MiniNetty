@@ -1,7 +1,7 @@
 package Handler;
 
 import ConnectionService.Connection;
-import Protocol.HttpRequest;
+import Protocol.Protocol;
 
 public class HttpHandler implements MessageHandler{
 
@@ -11,7 +11,7 @@ public class HttpHandler implements MessageHandler{
     }
 
     @Override
-    public void sendMessage(Connection connection, Object object) {
+    public void sendMessage(Connection connection, Protocol response) {
 
     }
 }

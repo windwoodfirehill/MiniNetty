@@ -4,8 +4,8 @@ import Core.BossLoop;
 import Core.ChannelDispatcher;
 import Core.WorkerLoop;
 import Handler.MessageHandler;
-import Protocol.Protocol;
-import Protocol.HttpProtocol;
+import ProtocolParser.ProtocolParser;
+import ProtocolParser.HttpProtocolParser;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.*;
@@ -17,12 +17,12 @@ public class MiniNettyBootStrap {
     private static final Map<String, MessageHandler> handlerMap = new HashMap<>();
     private final int defaultPort;
     private final String defaultHost;
-    private final Protocol defaultProtocol;
-    private  Map<String, Supplier<Protocol>> protocolHandlers;
-    public MiniNettyBootStrap(int defaultPort,String defaultHost,Protocol defaultProtocol){
+    private final ProtocolParser defaultProtocolParser;
+    private Map<String, Supplier<ProtocolParser>> protocolParsers;
+    public MiniNettyBootStrap(int defaultPort,String defaultHost,ProtocolParser defaultProtocolParser){
         this.defaultPort = defaultPort;
         this.defaultHost = defaultHost;
-        this.defaultProtocol = defaultProtocol;
+        this.defaultProtocolParser = defaultProtocolParser;
     }
     public void setHandler(String protocolType,MessageHandler messageHandler){
         handlerMap.put(protocolType,messageHandler);
@@ -31,12 +31,13 @@ public class MiniNettyBootStrap {
     public void MiniteyStart() throws IOException {
         //协议获取映射表
         String[] protocols = {"http"};
-        protocolHandlers = Map.of(protocols[0],HttpProtocol :: new);
+        protocolParsers = Map.of(protocols[0],HttpProtocolParser :: new);
         //事件分发器
         ChannelDispatcher channelDispatcher = new ChannelDispatcher();
         //注册
         BossLoop bossLoop = new BossLoop(new InetSocketAddress(defaultHost, defaultPort),channelDispatcher); //修改
-        WorkerLoop workerLoop = new WorkerLoop(defaultProtocol.getType(), handlerMap.get(defaultProtocol.getType()),handlerMap,protocolHandlers); //修改：传协议类型
+        WorkerLoop workerLoop = new WorkerLoop(defaultProtocolParser.getType(),
+                handlerMap.get(defaultProtocolParser.getType()), handlerMap, protocolParsers);
         //注入事件分发器
         channelDispatcher.injectWorkerLoop(workerLoop);
         Thread boss = new Thread(()->{

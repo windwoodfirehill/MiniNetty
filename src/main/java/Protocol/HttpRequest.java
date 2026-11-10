@@ -3,7 +3,7 @@ package Protocol;
 import java.util.List;
 import java.util.Map;
 
-public class HttpRequest extends Protocols{
+public class HttpRequest implements Protocol {
     //GET /index.html?user=123 HTTP/1.1
     //Host: www.example.com
     //User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)
@@ -55,6 +55,7 @@ public class HttpRequest extends Protocols{
         return body;
     }
     //这个约定要共同实现，方便日后的使用
+    @Override
     public int getLength() {
         if(length > 0){
             return length;

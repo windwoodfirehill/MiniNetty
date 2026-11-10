@@ -5,6 +5,7 @@ import ConnectionService.Connection;
 import ConnectionService.ConnectionState;
 import Handler.MessageHandler;
 import Protocol.Protocol;
+import ProtocolParser.ProtocolParser;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -23,14 +24,14 @@ public class WorkerLoop extends EventLoop{
     public final ArrayBlockingQueue<SocketChannel> queue;
     private final String protocolType;
     private final Map<String,MessageHandler> handlerMap;
-    private  Map<String, Supplier<Protocol>> protocolHandlers;
+    private Map<String, Supplier<ProtocolParser>> protocolParsers;
 
     public WorkerLoop(String protocolType, MessageHandler messageHandler,Map handlerMap,
-                      Map<String, Supplier<Protocol>> protocolHandlers) throws IOException {
+                      Map<String, Supplier<ProtocolParser>> protocolParsers) throws IOException {
         this.protocolType = protocolType;
         this.handlerMap = handlerMap; //修改：初始化失败向调用方抛出
         queue = new ArrayBlockingQueue<>(QUE_SIZE);
-        this.protocolHandlers = protocolHandlers;
+        this.protocolParsers = protocolParsers;
     }
 
     public boolean offerToQueue(SocketChannel socketChannel){
@@ -102,7 +103,7 @@ public class WorkerLoop extends EventLoop{
                 System.out.println("正在开发中->获取协议->设置state的协议/否则使用默认协议");
             }
             //不判空，谁tm给我源码啊
-            state.protocol = protocolHandlers.get(protocolType).get();
+            state.protocolParser = protocolParsers.get(protocolType).get();
 
             channel.register(selector, SelectionKey.OP_READ,state);
         } catch (IOException ex) {
@@ -114,17 +115,21 @@ public class WorkerLoop extends EventLoop{
             }
         }
     }
-    public ByteBuffer expand(ByteBuffer byteBuffer){
-
-        if(byteBuffer.capacity() * GROW_RATE > BUF_MAX_SIZE){
+    public ByteBuffer expand(ByteBuffer byteBuffer,boolean reader){
+        int capacity = byteBuffer.capacity();
+        if (capacity == 0 || capacity >= BUF_MAX_SIZE) {
             return byteBuffer;
         }
-        ByteBuffer temp = byteBuffer;
-        ByteBuffer biggerBuf = ByteBuffer.allocate(temp.capacity() * GROW_RATE);
-        temp.flip();
+        ByteBuffer temp = byteBuffer.duplicate(); // 修改：复制时保留原 buffer 的位置
+        ByteBuffer biggerBuf = ByteBuffer.allocate(Math.min(capacity * GROW_RATE, BUF_MAX_SIZE));
+        if(reader) {
+            temp.flip();
+        }
         biggerBuf.put(temp);
-        byteBuffer = biggerBuf;
-        return byteBuffer;
+        if (!reader) {
+            biggerBuf.flip(); // 新增：发送缓冲区返回时可直接交给 Socket 续写。
+        }
+        return biggerBuf;
     }
     //未来的协商
     public boolean co(){
@@ -163,14 +168,14 @@ public class WorkerLoop extends EventLoop{
 
                 MessageHandler handler;
 
-                Protocol protocol = state.protocol; //修改：连接存续期间复用同一个解析器
+                ProtocolParser parser = state.protocolParser; //修改：连接存续期间复用同一个解析器
 
-                handler = handlerMap.get(protocol.getType());
+                handler = handlerMap.get(parser.getType());
 
                 ByteBuffer byteBuffer = readBuffer.get(data);
                 //判断是否完全到达
                 String temp = new String(data, StandardCharsets.UTF_8);
-                int requestLength = protocol.isArrived(data);
+                int requestLength = parser.isArrived(data);
                 if( requestLength < 0){
                     readBuffer.position(requestStart); //修改：只保留当前尚未完成的请求
                     break; //修改：退出解析循环后统一 compact
@@ -178,7 +183,7 @@ public class WorkerLoop extends EventLoop{
 
                 Connection connection = new Connection(this,state);
 
-                handler.onMessage(connection,protocol.decoder(data));
+                handler.onMessage(connection,parser.decoder(data));
 
                 System.out.println(new String(data, 0, requestLength, StandardCharsets.UTF_8)); //修改：只打印本次请求
                 //只清楚这次的requestLength
@@ -187,7 +192,7 @@ public class WorkerLoop extends EventLoop{
             }
             readBuffer.compact();
             if(!readBuffer.hasRemaining()){
-                ByteBuffer temp = expand(readBuffer);
+                ByteBuffer temp = expand(readBuffer,true);
                 if(temp == state.readBuffer){
                     closeConnection(key);
                     return;
@@ -208,10 +213,9 @@ public class WorkerLoop extends EventLoop{
 
         if (writeBuffer == null ) {
             if(state.queue != null) {
-                Object object = state.queue.poll();
-                if (object != null) {
-                    Protocol protocol = state.protocol;
-                    byte[] data = protocol.encoder(object);
+                Protocol message = state.queue.poll();
+                if (message != null) {
+                    byte[] data = state.protocolParser.encoder(message);
                     writeBuffer = ByteBuffer.wrap(data);
 
                 } else {

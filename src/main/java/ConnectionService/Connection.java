@@ -1,18 +1,17 @@
 package ConnectionService;
 
 import Core.EventLoop;
+import Core.WorkerLoop;
 import Protocol.Protocol;
-import Protocol.Protocols;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 public class Connection {
     private EventLoop eventLoop;
     private ConnectionState state;
     private final int STATE_QUEUE_SIZE = 64;
-
+    private final int LOAD = 2;
     public Connection(EventLoop eventLoop,ConnectionState state){
         this.eventLoop = eventLoop;
         this.state = state;
@@ -20,7 +19,7 @@ public class Connection {
     public Connection(){
 
     }
-    public boolean offerAndWeakUp(Object object){
+    public boolean offerAndWeakUp(Protocol message) throws InterruptedException {
         if(state.queue == null){
             synchronized (state){
                 if(state.queue == null){
@@ -28,7 +27,10 @@ public class Connection {
                 }
             }
         }
-        boolean success = state.queue.offer(object);
+        if(!ensureWriteCapacity()){
+            Thread.sleep(2000);
+        }
+        boolean success = state.queue.offer(message);
         if(!success) {
           return false;
         }
@@ -36,27 +38,32 @@ public class Connection {
         return true;
     }
 
-    public int getTotalByteSize(){
-        ArrayBlockingQueue<Object> queue =  state.queue;
+    // 由所属 Worker 调用，避免和 Socket 写入同时修改 writeBuffer。
+    public boolean ensureWriteCapacity(){
+        ArrayBlockingQueue<Protocol> queue = state.queue;
         ByteBuffer byteBuffer = state.writeBuffer;
-        int size = 0;
-        for(Object object : queue){
-           int len = (Protocols)object.getLength();
-           size += len;
+
+        int size = byteBuffer == null ? 0 : byteBuffer.remaining();
+        if (queue != null) {
+            for (Protocol message : queue) {
+                size += message.getLength();
+            }
         }
-
-        //遍历队列
-        //加上缓冲区大小
-        size = queuebytesize + byteBuffer.size();
-        //如果大于负载因子的话
-        if(size >= Load * byteBuffer.capacity()){
-            expand(byteBuffer);
+        if (byteBuffer != null && eventLoop instanceof WorkerLoop worker) {
+            while (size > (long) byteBuffer.capacity() * LOAD) {
+                ByteBuffer biggerBuffer = worker.expand(byteBuffer, false); // 新增：扩容待发送的 buffer
+                if (biggerBuffer == byteBuffer) {
+                    rejectHandler(); // 新增：扩不动了，退出循环
+                    return false;
+                }
+                state.writeBuffer = biggerBuffer;
+                byteBuffer = biggerBuffer;
+            }
         }
+        return true;
     }
-    public ByteBuffer expand(ByteBuffer byteBuffer){
-        if()
-
-        return biggerBuffer;
+    public void rejectHandler(){
+        // TODO: 达到上限后的处理策略。
+        //暂时不知道如何是好
     }
-
 }

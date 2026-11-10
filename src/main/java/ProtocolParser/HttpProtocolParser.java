@@ -1,5 +1,8 @@
-package Protocol;
+package ProtocolParser;
 
+import Protocol.HttpRequest;
+import Protocol.HttpResponse;
+import Protocol.Protocol;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -9,7 +12,7 @@ import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 
-public class HttpProtocol extends Protocol{
+public class HttpProtocolParser implements ProtocolParser {
     private static final String TYPE = "http";
 
     public static Map<String, List<String>> initHeaders() {
@@ -20,7 +23,7 @@ public class HttpProtocol extends Protocol{
     public String getType() {
         return TYPE;
     }
-    public HttpProtocol(){
+    public HttpProtocolParser(){
 
     }
 
@@ -69,7 +72,7 @@ public class HttpProtocol extends Protocol{
     }
 
     @Override
-    public byte[] encoder(Object message) {
+    public byte[] encoder(Protocol message) {
         if(message == null){
             return new byte[0];
         }
@@ -108,7 +111,7 @@ public class HttpProtocol extends Protocol{
 
 
      @Override
-     boolean isLegal() {
+     public boolean isLegal() {
         return false;
     }
        public int isArrived(byte[] data) {

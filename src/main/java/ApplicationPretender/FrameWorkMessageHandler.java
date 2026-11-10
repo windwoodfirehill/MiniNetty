@@ -5,6 +5,7 @@ import Handler.HttpHandler;
 import Handler.MessageHandler;
 import Protocol.HttpRequest;
 import Protocol.HttpResponse;
+import Protocol.Protocol;
 import java.nio.charset.StandardCharsets; //新增
 import java.util.List; //新增
 
@@ -24,7 +25,7 @@ public class FrameWorkMessageHandler implements MessageHandler<HttpRequest>{
     }
 
     @Override
-    public void sendMessage(Connection connection, Object response) { //修改：接收响应
+    public void sendMessage(Connection connection, Protocol response) { //修改：接收响应
         if (!connection.offerAndWeakUp(response)) { //修改：入队响应，并报告队满
             System.err.println("响应发送队列已满，入队失败");
         }
