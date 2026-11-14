@@ -218,33 +218,44 @@ public class WorkerLoop extends EventLoop{
 
         ByteBuffer writeBuffer = state.writeBuffer;
 
-        if (writeBuffer == null ) {//检查缓冲区是否为空
-            if(state.queue != null) {//队列不为空
-                Protocol message = state.queue.poll();
-                if (message != null) {//取出不为空
-                    int length = message.getLength();
-                    int remain =writeBuffer.capacity() - writeBuffer.position();
-                    while (remain < length) {
-                        ByteBuffer temp = expand(writeBuffer,true);
-                        if(temp == writeBuffer){
-                            //如果没空接住
-                            return;
-                        }
-                        remain += writeBuffer.capacity();
-                    }
-                    //避免浪费资源
-                    byte[] data = state.protocolParser.encoder(message);
-                    writeBuffer.put(data);
-
-                } else {//取出消息为空，取消关注
-                    key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
-                    return;
-                }
-            }else{//队列为空，取消关注
+        if (writeBuffer == null) {
+            if (state.queue == null || state.queue.isEmpty()) {
                 key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
                 return;
             }
+            writeBuffer = ByteBuffer.allocate(BUF_MIN_SIZE);
+        } else {
+            writeBuffer.compact(); //修改：保留没发完的字节，切到可追加状态
         }
+
+        //修改：先看队头，整条响应装得下才出队
+        if (state.queue != null) {
+            Protocol message;
+            while (writeBuffer.hasRemaining() && (message = state.queue.peek()) != null) {
+                byte[] data = state.protocolParser.encoder(message);
+                if (data.length > BUF_MAX_SIZE) {
+                    if (writeBuffer.position() == 0) {
+                        // 单条响应超过上限，关闭连接以免客户端一直等待
+                        closeConnection(key);
+                        return;
+                    }
+                    break;
+                }
+                while (writeBuffer.remaining() < data.length) {
+                    ByteBuffer biggerBuffer = expand(writeBuffer, true);
+                    if (biggerBuffer == writeBuffer) {
+                        break;
+                    }
+                    writeBuffer = biggerBuffer;
+                }
+                if (writeBuffer.remaining() < data.length) {
+                    break; // 留在队头，先发送已有数据
+                }
+                writeBuffer.put(data);
+                state.queue.poll();
+            }
+        }
+        writeBuffer.flip(); //新增：仅发送保留下来的字节和刚追加的响应
 
         try{
             client.write(writeBuffer);
@@ -258,7 +269,11 @@ public class WorkerLoop extends EventLoop{
             state.writeBuffer = writeBuffer;
         }else{
             state.writeBuffer = null;
-            key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+            if (state.queue != null && !state.queue.isEmpty()) {
+                key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+            } else {
+                key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
+            }
         }
     }
 
@@ -279,9 +294,9 @@ public class WorkerLoop extends EventLoop{
             case 0:
                 key.interestOps(~SelectionKey.OP_WRITE & ~SelectionKey.OP_READ);
             case 1:
-                key.interestOps(~SelectionKey.OP_READ);
+                key.interestOps(key.interestOps() & ~SelectionKey.OP_READ);
             case 2:
-                key.interestOps(~SelectionKey.OP_WRITE);
+                key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
         }
     }
 }

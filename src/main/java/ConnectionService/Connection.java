@@ -19,7 +19,7 @@ public class Connection {
     public Connection(){
 
     }
-    public boolean offerAndWeakUp(Protocol message) throws InterruptedException {
+    public boolean offerAndWeakUp(Protocol message) {
         if(state.queue == null){
             synchronized (state){
                 if(state.queue == null){
@@ -29,6 +29,7 @@ public class Connection {
         }
         if(!ensureWriteCapacity()){
             rejectHandler(1);
+            return false;
         }else{
             rejectHandler(2);
         }
