@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="420" viewBox="0 0 760 420">
+<rect width="760" height="420" fill="#f8fafc"/>
+<g font-family="Arial,sans-serif" fill="#152638">
+<text x="32" y="36" font-size="22" font-weight="bold">Elapsed time per 16,000 messages (ms)</text>
+<text x="32" y="61" font-size="13">Local TCP / JDK 17 / median of five runs</text>
+<path d="M75 337H725" stroke="#d3dde7"/>
+<text x="67" y="341" text-anchor="end" font-size="11">0</text>
+<path d="M75 282H725" stroke="#d3dde7"/>
+<text x="67" y="286" text-anchor="end" font-size="11">102</text>
+<path d="M75 227H725" stroke="#d3dde7"/>
+<text x="67" y="231" text-anchor="end" font-size="11">203</text>
+<path d="M75 172H725" stroke="#d3dde7"/>
+<text x="67" y="176" text-anchor="end" font-size="11">305</text>
+<path d="M75 117H725" stroke="#d3dde7"/>
+<text x="67" y="121" text-anchor="end" font-size="11">406</text>
+<rect x="125" y="175.2473426448725" width="60" height="161.7526573551275" fill="#295db2"/>
+<text x="155" y="168.2473426448725" text-anchor="middle" font-size="13">298.5</text>
+<rect x="197" y="330.536092641178" width="60" height="6.463907358822007" fill="#087a68"/>
+<text x="227" y="323.536092641178" text-anchor="middle" font-size="13">11.9</text>
+<text x="191" y="361" text-anchor="middle" font-size="14">128 bytes/message</text>
+<rect x="345" y="167.9495050802305" width="60" height="169.0504949197695" fill="#295db2"/>
+<text x="375" y="160.9495050802305" text-anchor="middle" font-size="13">312.0</text>
+<rect x="417" y="289.1609082839333" width="60" height="47.8390917160667" fill="#087a68"/>
+<text x="447" y="282.1609082839333" text-anchor="middle" font-size="13">88.3</text>
+<text x="411" y="361" text-anchor="middle" font-size="14">1,024 bytes/message</text>
+<rect x="565" y="153.21348692085715" width="60" height="183.78651307914285" fill="#295db2"/>
+<text x="595" y="146.21348692085715" text-anchor="middle" font-size="13">339.2</text>
+<rect x="637" y="145.69565217391303" width="60" height="191.30434782608697" fill="#087a68"/>
+<text x="667" y="138.69565217391303" text-anchor="middle" font-size="13">353.0</text>
+<text x="631" y="361" text-anchor="middle" font-size="14">4,096 bytes/message</text>
+<rect x="165" y="385" width="14" height="14" fill="#295db2"/><text x="186" y="397" font-size="14">One response at a time</text>
+<rect x="405" y="385" width="14" height="14" fill="#087a68"/><text x="426" y="397" font-size="14">Pack while space remains</text>
+</g></svg>

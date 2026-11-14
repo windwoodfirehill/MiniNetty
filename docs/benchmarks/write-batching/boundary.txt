@@ -1,0 +1,6 @@
+single 4095 PASS sent=3 rejected=0
+single 4096 PASS sent=3 rejected=0
+single 4097 PASS sent=1 rejected=2
+batch 4095 PASS sent=3 rejected=0
+batch 4096 PASS sent=3 rejected=0
+batch 4097 PASS sent=1 rejected=2

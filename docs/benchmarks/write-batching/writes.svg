@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="420" viewBox="0 0 760 420">
+<rect width="760" height="420" fill="#f8fafc"/>
+<g font-family="Arial,sans-serif" fill="#152638">
+<text x="32" y="36" font-size="22" font-weight="bold">SocketChannel.write calls per 16,000 messages</text>
+<text x="32" y="61" font-size="13">Local TCP / JDK 17 / median of five runs</text>
+<path d="M75 337H725" stroke="#d3dde7"/>
+<text x="67" y="341" text-anchor="end" font-size="11">0</text>
+<path d="M75 282H725" stroke="#d3dde7"/>
+<text x="67" y="286" text-anchor="end" font-size="11">4,600</text>
+<path d="M75 227H725" stroke="#d3dde7"/>
+<text x="67" y="231" text-anchor="end" font-size="11">9,200</text>
+<path d="M75 172H725" stroke="#d3dde7"/>
+<text x="67" y="176" text-anchor="end" font-size="11">13,800</text>
+<path d="M75 117H725" stroke="#d3dde7"/>
+<text x="67" y="121" text-anchor="end" font-size="11">18,400</text>
+<rect x="125" y="145.69565217391306" width="60" height="191.30434782608694" fill="#295db2"/>
+<text x="155" y="138.69565217391306" text-anchor="middle" font-size="13">16,000</text>
+<rect x="197" y="331.0217391304348" width="60" height="5.978260869565217" fill="#087a68"/>
+<text x="227" y="324.0217391304348" text-anchor="middle" font-size="13">500</text>
+<text x="191" y="361" text-anchor="middle" font-size="14">128 bytes/message</text>
+<rect x="345" y="145.69565217391306" width="60" height="191.30434782608694" fill="#295db2"/>
+<text x="375" y="138.69565217391306" text-anchor="middle" font-size="13">16,000</text>
+<rect x="417" y="289.17391304347825" width="60" height="47.826086956521735" fill="#087a68"/>
+<text x="447" y="282.17391304347825" text-anchor="middle" font-size="13">4,000</text>
+<text x="411" y="361" text-anchor="middle" font-size="14">1,024 bytes/message</text>
+<rect x="565" y="145.69565217391306" width="60" height="191.30434782608694" fill="#295db2"/>
+<text x="595" y="138.69565217391306" text-anchor="middle" font-size="13">16,000</text>
+<rect x="637" y="145.69565217391306" width="60" height="191.30434782608694" fill="#087a68"/>
+<text x="667" y="138.69565217391306" text-anchor="middle" font-size="13">16,000</text>
+<text x="631" y="361" text-anchor="middle" font-size="14">4,096 bytes/message</text>
+<rect x="165" y="385" width="14" height="14" fill="#295db2"/><text x="186" y="397" font-size="14">One response at a time</text>
+<rect x="405" y="385" width="14" height="14" fill="#087a68"/><text x="426" y="397" font-size="14">Pack while space remains</text>
+</g></svg>
