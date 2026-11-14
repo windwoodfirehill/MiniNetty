@@ -1,6 +1,10 @@
 package Core;
 
+import ConnectionService.ConnectionState;
+
 import java.io.IOException;
+import java.nio.channels.SelectableChannel;
+import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 
 public abstract class EventLoop {
@@ -22,4 +26,5 @@ public abstract class EventLoop {
     //注册channel
     abstract void register(Selector selector) throws IOException;
     //修改：read/write 属于 Worker，不再要求 Boss 提供空实现。
+    public abstract void cancelInterest(int signal, ConnectionState state);
 }

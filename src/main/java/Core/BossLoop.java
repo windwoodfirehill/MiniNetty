@@ -1,5 +1,6 @@
 package Core;
 
+import ConnectionService.ConnectionState;
 import ConnectionService.ServiceCreater;
 
 import java.io.IOException;
@@ -59,6 +60,13 @@ public class BossLoop extends EventLoop{
     @Override
     void register(Selector selector) throws IOException {
         serviceCreater.register(selector);
+    }
+
+    @Override
+    public void cancelInterest(int signal, ConnectionState state) {
+        switch (signal){
+            case 3:
+        }
     }
 
 }

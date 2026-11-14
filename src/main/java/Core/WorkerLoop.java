@@ -11,6 +11,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.security.Key;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.function.Supplier;
@@ -106,6 +107,13 @@ public class WorkerLoop extends EventLoop{
             state.protocolParser = protocolParsers.get(protocolType).get();
 
             channel.register(selector, SelectionKey.OP_READ,state);
+
+            SelectionKey key = channel.keyFor(selector);
+
+            if(key != null && key.isValid()){
+                state.key = key;
+            }
+
         } catch (IOException ex) {
             ex.printStackTrace();
             try {
@@ -202,7 +210,6 @@ public class WorkerLoop extends EventLoop{
         }
     }
 
-
     void write(SelectionKey key) throws IOException {
 
         SocketChannel client = (SocketChannel) key.channel();
@@ -211,22 +218,34 @@ public class WorkerLoop extends EventLoop{
 
         ByteBuffer writeBuffer = state.writeBuffer;
 
-        if (writeBuffer == null ) {
-            if(state.queue != null) {
+        if (writeBuffer == null ) {//检查缓冲区是否为空
+            if(state.queue != null) {//队列不为空
                 Protocol message = state.queue.poll();
-                if (message != null) {
+                if (message != null) {//取出不为空
+                    int length = message.getLength();
+                    int remain =writeBuffer.capacity() - writeBuffer.position();
+                    while (remain < length) {
+                        ByteBuffer temp = expand(writeBuffer,true);
+                        if(temp == writeBuffer){
+                            //如果没空接住
+                            return;
+                        }
+                        remain += writeBuffer.capacity();
+                    }
+                    //避免浪费资源
                     byte[] data = state.protocolParser.encoder(message);
-                    writeBuffer = ByteBuffer.wrap(data);
+                    writeBuffer.put(data);
 
-                } else {
+                } else {//取出消息为空，取消关注
                     key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
                     return;
                 }
-            }else{
+            }else{//队列为空，取消关注
                 key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
                 return;
             }
         }
+
         try{
             client.write(writeBuffer);
         }catch (IOException ex){
@@ -244,11 +263,25 @@ public class WorkerLoop extends EventLoop{
     }
 
     private void closeConnection(SelectionKey key) {
+        ConnectionState state = (ConnectionState) key.attachment();
         key.cancel();
         try {
+            state.key = null;
             key.channel().close();
         } catch (IOException ex) {
             ex.printStackTrace();
+        }
+    }
+    //0cancel all 1 cancel read 2 cancel write
+    public void cancelInterest(int signal,ConnectionState state){
+        SelectionKey key = state.key;
+        switch (signal){
+            case 0:
+                key.interestOps(~SelectionKey.OP_WRITE & ~SelectionKey.OP_READ);
+            case 1:
+                key.interestOps(~SelectionKey.OP_READ);
+            case 2:
+                key.interestOps(~SelectionKey.OP_WRITE);
         }
     }
 }

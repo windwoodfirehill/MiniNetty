@@ -28,7 +28,9 @@ public class Connection {
             }
         }
         if(!ensureWriteCapacity()){
-            Thread.sleep(2000);
+            rejectHandler(1);
+        }else{
+            rejectHandler(2);
         }
         boolean success = state.queue.offer(message);
         if(!success) {
@@ -37,10 +39,9 @@ public class Connection {
         eventLoop.selector.wakeup();
         return true;
     }
-
-    // 由所属 Worker 调用，避免和 Socket 写入同时修改 writeBuffer。
     public boolean ensureWriteCapacity(){
         ArrayBlockingQueue<Protocol> queue = state.queue;
+        // 由所属 Worker 调用，避免和 Socket 写入同时修改 writeBuffer。
         ByteBuffer byteBuffer = state.writeBuffer;
 
         int size = byteBuffer == null ? 0 : byteBuffer.remaining();
@@ -53,17 +54,16 @@ public class Connection {
             while (size > (long) byteBuffer.capacity() * LOAD) {
                 ByteBuffer biggerBuffer = worker.expand(byteBuffer, false); // 新增：扩容待发送的 buffer
                 if (biggerBuffer == byteBuffer) {
-                    rejectHandler(); // 新增：扩不动了，退出循环
                     return false;
                 }
                 state.writeBuffer = biggerBuffer;
                 byteBuffer = biggerBuffer;
             }
         }
+
         return true;
     }
-    public void rejectHandler(){
-        // TODO: 达到上限后的处理策略。
-        //暂时不知道如何是好
+    public void rejectHandler(int signal){
+        eventLoop.cancelInterest(signal,state);
     }
 }
