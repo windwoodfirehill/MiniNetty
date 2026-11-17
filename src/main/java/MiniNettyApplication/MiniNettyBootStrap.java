@@ -2,6 +2,7 @@ package MiniNettyApplication;
 
 import Core.BossLoop;
 import Core.ChannelDispatcher;
+import Core.WorkerGroup;
 import Core.WorkerLoop;
 import Handler.MessageHandler;
 import ProtocolParser.ProtocolParser;
@@ -19,6 +20,7 @@ public class MiniNettyBootStrap {
     private final String defaultHost;
     private final ProtocolParser defaultProtocolParser;
     private Map<String, Supplier<ProtocolParser>> protocolParsers;
+
     public MiniNettyBootStrap(int defaultPort,String defaultHost,ProtocolParser defaultProtocolParser){
         this.defaultPort = defaultPort;
         this.defaultHost = defaultHost;
@@ -36,10 +38,12 @@ public class MiniNettyBootStrap {
         ChannelDispatcher channelDispatcher = new ChannelDispatcher();
         //注册
         BossLoop bossLoop = new BossLoop(new InetSocketAddress(defaultHost, defaultPort),channelDispatcher); //修改
-        WorkerLoop workerLoop = new WorkerLoop(defaultProtocolParser.getType(),
-                handlerMap.get(defaultProtocolParser.getType()), handlerMap, protocolParsers);
-        //注入事件分发器
-        channelDispatcher.injectWorkerLoop(workerLoop);
+
+        WorkerGroup workerGroup = new WorkerGroup(channelDispatcher);
+        //创建worker 注册worker到分π器里，启动合成为一个方法了
+        workerGroup.creatWorkerLoop(defaultProtocolParser.getType(),
+                handlerMap.get(defaultProtocolParser.getType()), handlerMap, protocolParsers,2);
+                
         Thread boss = new Thread(()->{
             try {
                 bossLoop.loop();
@@ -47,14 +51,8 @@ public class MiniNettyBootStrap {
                 ex.printStackTrace();
             }
         },"boss-1");
-        Thread worker = new Thread(()->{
-            try{
-                workerLoop.loop();
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
-        },"worker-1");
+
         boss.start();
-        worker.start();
+
     }
 }

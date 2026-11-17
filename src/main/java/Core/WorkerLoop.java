@@ -22,12 +22,12 @@ public class WorkerLoop extends EventLoop{
     public static final int BUF_MIN_SIZE = 1024;
     public static final int BUF_MAX_SIZE = 4096;
     public static final int GROW_RATE = 2;
-    public final ArrayBlockingQueue<SocketChannel> queue;
-    private final String protocolType;
-    private final Map<String,MessageHandler> handlerMap;
-    private Map<String, Supplier<ProtocolParser>> protocolParsers;
+    public final ArrayBlockingQueue<SocketChannel> queue;//连接队列
+    private final String protocolType;//协议类型
+    private final Map<String,MessageHandler> handlerMap;//实现的handle集合
+    private Map<String, Supplier<ProtocolParser>> protocolParsers;//解码器
 
-    public WorkerLoop(String protocolType, MessageHandler messageHandler,Map handlerMap,
+    public WorkerLoop(String protocolType, MessageHandler messageHandler,Map<String,MessageHandler> handlerMap,
                       Map<String, Supplier<ProtocolParser>> protocolParsers) throws IOException {
         this.protocolType = protocolType;
         this.handlerMap = handlerMap; //修改：初始化失败向调用方抛出
@@ -41,7 +41,9 @@ public class WorkerLoop extends EventLoop{
         return result;
     }
 
-
+    public void closeWorker() throws IOException {
+        selector.close();
+    }
     @Override
     public void loop() throws IOException {
         while(!stop){
@@ -177,7 +179,7 @@ public class WorkerLoop extends EventLoop{
                 MessageHandler handler;
 
                 ProtocolParser parser = state.protocolParser; //修改：连接存续期间复用同一个解析器
-
+                //获取对应协议的handler
                 handler = handlerMap.get(parser.getType());
 
                 ByteBuffer byteBuffer = readBuffer.get(data);
@@ -242,11 +244,11 @@ public class WorkerLoop extends EventLoop{
                     break;
                 }
                 while (writeBuffer.remaining() < data.length) {
-                    ByteBuffer biggerBuffer = expand(writeBuffer, true);
-                    if (biggerBuffer == writeBuffer) {
+                    ByteBuffer temp = expand(writeBuffer, true);
+                    if (temp == writeBuffer) {
                         break;
                     }
-                    writeBuffer = biggerBuffer;
+                    writeBuffer = temp;
                 }
                 if (writeBuffer.remaining() < data.length) {
                     break; // 留在队头，先发送已有数据
@@ -287,7 +289,7 @@ public class WorkerLoop extends EventLoop{
             ex.printStackTrace();
         }
     }
-    //0cancel all 1 cancel read 2 cancel write
+    //0 cancel all 1 cancel read 2 cancel write
     public void cancelInterest(int signal,ConnectionState state){
         SelectionKey key = state.key;
         switch (signal){
